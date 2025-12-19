@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>轉盤抽獎機</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #f0f3f6;
+            margin: 0;
+            color: #333;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 90%;
+            max-width: 800px;
+        }
+        h1 {
+            color: #007bff;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+        }
+        
+        .content-wrapper {
+            display: flex;
+            flex-wrap: wrap; 
+            gap: 30px;
+            justify-content: center;
+            align-items: flex-start;
+        }
+        .controls {
+            flex: 1;
+            min-width: 300px;
+        }
+        
+        textarea {
+            width: 100%;
+            height: 250px;
+            padding: 15px;
+            margin-bottom: 10px; 
+            border: 2px solid #ccc;
+            border-radius: 8px;
+            resize: vertical;
+            font-size: 16px;
+            box-sizing: border-box; 
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px; 
+            margin-bottom: 15px;
+        }
+        
+        .button-group button {
+            flex: 1; 
+            padding: 12px 15px;
+            font-size: 16px;
+        }
+
+        #spin-button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: background-color 0.3s ease;
+        }
+        #spin-button:hover:not(:disabled) {
+            background-color: #218838;
+        }
+
+        #clear-button {
+            background-color: #dc3545; 
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: background-color 0.3s ease;
+        }
+        #clear-button:hover:not(:disabled) {
+            background-color: #c82333;
+        }
+
+        button:disabled {
+            background-color: #a0a0a0;
+            cursor: not-allowed;
+        }
+        
+        .wheel-area {
+            flex-shrink: 0; 
+            width: 320px; 
+            height: 350px; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+        #wheel-container {
+            position: absolute;
+            top: 20px;
+            width: 320px; 
+            height: 320px;
+            overflow: hidden;
+            border-radius: 50%;
+        }
+
+        #wheel {
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            border: 10px solid #f8d7da;
+            background: transparent; 
+            position: absolute;
+            top: 0;
+            left: 10px; 
+            transition: transform 6s cubic-bezier(0.25, 0.1, 0.25, 1);
+            overflow: hidden;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+        }
+        .wheel-segment { display: none; } 
+
+        #text-layer {
+            position: absolute;
+            top: 0;
+            left: 10px;
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            z-index: 5; 
+            pointer-events: none; 
+            transition: transform 6s cubic-bezier(0.25, 0.1, 0.25, 1);
+        }
+        .segment-text {
+            position: absolute;
+            width: 100px; 
+            height: 18px; 
+            font-size: 14px;
+            font-weight: bold;
+            color: black; 
+            text-shadow: none; 
+            text-align: center;
+            transform-origin: 50% 50%;
+        }
+
+        #pointer {
+            position: absolute;
+            top: 0px; 
+            left: 50%;
+            transform: translate(-50%, 0%);
+            width: 0;
+            height: 0;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-bottom: 20px solid #dc3545;
+            z-index: 10;
+        }
+        
+        #result-display {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            border-radius: 8px;
+            min-height: 40px;
+            font-size: 1.2em;
+            font-weight: bold;
+            width: 100%;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎡 轉盤抽獎機</h1>
+        <div class="content-wrapper">
+            <div class="controls">
+                <p>請在下方輸入參與抽獎的人員或項目清單，每行一個。</p>
+                <textarea id="participants-input" placeholder="例如：
+王小明
+陳大華
+..."></textarea>
+                
+                <div class="button-group">
+                    <button id="spin-button" onclick="startLottery()">開始抽獎</button>
+                    <button id="clear-button" onclick="clearParticipants()">一鍵清除</button>
+                </div>
+                
+                <div id="result-display">請輸入參與者名單！</div>
+            </div>
+            
+            <div class="wheel-area">
+                <div id="pointer"></div>
+                <div id="wheel-container">
+                    <div id="wheel">
+                        </div>
+                    <div id="text-layer">
+                        </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const EXCLUDED_NAME = "BEBE"; 
+        const ANIMATION_DURATION = '6s'; 
+        
+        const wheel = document.getElementById('wheel');
+        const textLayer = document.getElementById('text-layer');
+        const resultDisplay = document.getElementById('result-display');
+        const spinButton = document.getElementById('spin-button');
+        const participantsInput = document.getElementById('participants-input');
+        const wheelRadius = 150; 
+        const textDistance = 90; 
+        
+        const BLUE = '#007bff';
+        const WHITE = '#ffffff';
+        const colors = [BLUE, WHITE]; 
+
+        // 輔助函數 1: 取得所有輸入名單 (用於繪製轉盤)
+        function getParticipantsToDraw() {
+            return participantsInput.value.split('\n')
+                                         .map(name => name.trim())
+                                         .filter(name => name.length > 0);
+        }
+
+        // 輔助函數 2: 取得可供抽獎的名單 (用於實際抽獎)
+        function getParticipantsForLottery(allParticipants) {
+            return allParticipants.filter(name => name.toLowerCase() !== EXCLUDED_NAME.toLowerCase());
+        }
+
+        // 繪製轉盤的函數 (使用完整名單和 conic-gradient)
+        function drawWheel(participants) {
+            wheel.innerHTML = ''; 
+            textLayer.innerHTML = ''; 
+            const numSegments = participants.length;
+            
+            if (numSegments === 0) {
+                 wheel.style.backgroundColor = '#e9ecef';
+                 wheel.style.border = '10px dashed #ccc'; 
+                 wheel.style.background = 'none'; 
+                 return;
+            }
+            wheel.style.border = '10px solid #f8d7da';
+            wheel.style.backgroundColor = 'transparent'; 
+            
+            const degreesPerSegment = 360 / numSegments;
+            let gradientString = 'conic-gradient(';
+            let startAngle = 0;
+            
+            participants.forEach((name, index) => {
+                const segmentColor = colors[index % colors.length];
+                const endAngle = startAngle + degreesPerSegment;
+                
+                // 1. 顏色部分
+                gradientString += `${segmentColor} ${startAngle}deg ${endAngle}deg, `;
+                
+                // 2. 繪製姓名文字 (強制使用黑色)
+                const rotation = index * degreesPerSegment;
+                const textElement = document.createElement('div');
+                textElement.className = 'segment-text';
+                textElement.textContent = name;
+                textElement.style.color = 'black'; 
+                
+                // 計算文字的中心角度和位置
+                const centerAngle = (rotation + degreesPerSegment / 2) * (Math.PI / 180);
+                const x = wheelRadius + textDistance * Math.sin(centerAngle);
+                const y = wheelRadius - textDistance * Math.cos(centerAngle);
+
+                textElement.style.left = `${x - 50}px`; 
+                textElement.style.top = `${y - 9}px`;  
+                
+                const textRotation = rotation + degreesPerSegment / 2;
+                textElement.style.transform = `rotate(${textRotation}deg)`;
+                
+                textLayer.appendChild(textElement);
+                
+                startAngle = endAngle; 
+            });
+            
+            // 應用 conic-gradient
+            gradientString = gradientString.slice(0, -2) + ')'; 
+            wheel.style.background = gradientString;
+        }
+
+        // 一鍵清除函數
+        function clearParticipants() {
+            participantsInput.value = ''; 
+            drawWheel([]); 
+            spinButton.disabled = true; 
+            resultDisplay.textContent = '請輸入參與者名單！';
+            
+            // 關鍵修正 1: 重置轉盤和文字的角度
+            wheel.style.transform = 'rotate(0deg)';
+            textLayer.style.transform = 'rotate(0deg)';
+            
+            // 重置動畫，確保下次旋轉不會因為 transform 的值而影響速度
+            wheel.style.transition = 'none';
+            textLayer.style.transition = 'none';
+        }
+
+
+        // 監聽輸入框變化，即時更新轉盤
+        participantsInput.addEventListener('input', function() {
+            const participantsToDraw = getParticipantsToDraw();
+            const participantsForLottery = getParticipantsForLottery(participantsToDraw);
+            
+            // 當輸入名單發生變化時，將轉盤角度歸零，視覺上更清晰
+            wheel.style.transform = 'rotate(0deg)';
+            textLayer.style.transform = 'rotate(0deg)';
+            
+            drawWheel(participantsToDraw);
+
+            if (participantsForLottery.length === 0) {
+                resultDisplay.textContent = '沒有可供抽獎的參與者！';
+                spinButton.disabled = true;
+            } else {
+                resultDisplay.textContent = '點擊「開始抽獎」！';
+                spinButton.disabled = false;
+            }
+        });
+
+        // 抽獎主函數
+        function startLottery() {
+            spinButton.disabled = true; 
+            resultDisplay.textContent = '轉盤旋轉中...';
+
+            const participantsToDraw = getParticipantsToDraw();
+            const participantsForLottery = getParticipantsForLottery(participantsToDraw);
+
+            if (participantsForLottery.length === 0) {
+                resultDisplay.textContent = '沒有可供抽獎的參與者！';
+                spinButton.disabled = false;
+                return;
+            }
+            
+            // 關鍵修正 2: 在設定新的旋轉前，先強制重設動畫和角度，確保從 0 度開始
+            wheel.style.transition = 'none';
+            textLayer.style.transition = 'none';
+            wheel.style.transform = 'rotate(0deg)';
+            textLayer.style.transform = 'rotate(0deg)';
+
+            // 觸發重繪 (必須有這一步，瀏覽器才能區分 'none' 和新的 transition)
+            // 讀取 offsetHeight 是觸發瀏覽器重繪的常見技巧
+            wheel.offsetHeight; 
+
+            drawWheel(participantsToDraw); 
+
+            const winningLotteryIndex = Math.floor(Math.random() * participantsForLottery.length);
+            const winner = participantsForLottery[winningLotteryIndex];
+            
+            const winningDrawIndex = participantsToDraw.indexOf(winner);
+            
+            const numSegments = participantsToDraw.length;
+            const degreesPerSegment = 360 / numSegments;
+            
+            let rotationToAlign = 360 - ((winningDrawIndex * degreesPerSegment) + (degreesPerSegment / 2));
+            const extraSpins = 5 * 360; 
+            let finalRotation = -(extraSpins + rotationToAlign + (Math.random() * (degreesPerSegment - 5) + 2.5));
+
+            // 重新設定固定的 transition 時間
+            wheel.style.transition = `transform ${ANIMATION_DURATION} cubic-bezier(0.25, 0.1, 0.25, 1)`;
+            textLayer.style.transition = `transform ${ANIMATION_DURATION} cubic-bezier(0.25, 0.1, 0.25, 1)`;
+            
+            // 執行旋轉
+            wheel.style.transform = `rotate(${finalRotation}deg)`;
+            textLayer.style.transform = `rotate(${finalRotation}deg)`;
+
+            // 顯示結果
+            setTimeout(() => {
+                resultDisplay.textContent = `🎉 恭喜！幸運兒是：${winner}！`;
+                spinButton.disabled = false;
+            }, 6500); 
+        }
+        
+        // 初始載入時
+        document.addEventListener('DOMContentLoaded', function() {
+            clearParticipants(); // 使用新的 clear 函數初始化
+        });
+
+    </script>
+</body>
+</html>
